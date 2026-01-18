@@ -12,8 +12,6 @@ pub fn rle_compress(data: &[u8]) -> WkResult<Vec<u8>> {
         let current = data[i];
         let mut run_length = 1;
 
-        // Max run_length is 127 to avoid encoding issue where 128 | 0x80 = 0x80
-        // which would decode as count = 0x80 & 0x7F = 0
         while i + run_length < data.len() && data[i + run_length] == current && run_length < 127 {
             run_length += 1;
         }
