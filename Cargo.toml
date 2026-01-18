@@ -1,0 +1,39 @@
+[package]
+name = "wk-image-format"
+version = "0.1.0"
+edition = "2021"
+authors = ["Inggrit Setya Budi"]
+
+[dependencies]
+image = "0.25"
+byteorder = "1.5"
+thiserror = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+bincode = "1.3"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+eframe = { version = "0.29", optional = true }
+egui = { version = "0.29", optional = true }
+egui_extras = { version = "0.29", optional = true, features = ["image"] }
+rfd = { version = "0.14", optional = true }
+
+[features]
+default = []
+viewer = ["eframe", "egui", "egui_extras", "rfd"]
+
+[lib]
+name = "wk_format"
+path = "src/lib.rs"
+
+[[bin]]
+name = "wkconverter"
+path = "src/main.rs"
+
+[[bin]]
+name = "wkdebug"
+path = "src/bin/debug.rs"
+
+[[bin]]
+name = "wkviewer"
+path = "src/bin/viewer.rs"
+required-features = ["viewer"]

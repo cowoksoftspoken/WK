@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WK Image Viewer</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>🖼️ WK Image Viewer</h1>
+        <p>View and analyze .wk image files</p>
+      </div>
+
+      <div class="content">
+        <div class="viewer-section">
+          <div class="upload-area" id="uploadArea">
+            <div class="upload-icon">📁</div>
+            <div class="upload-text">Drop .wk file here</div>
+            <div class="upload-hint">or click to browse</div>
+            <input type="file" id="fileInput" accept=".wk" />
+          </div>
+
+          <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <div>Loading WK file...</div>
+          </div>
+
+          <div
+            class="canvas-container"
+            id="canvasContainer"
+            style="display: none"
+          >
+            <canvas id="canvas"></canvas>
+          </div>
+
+          <div class="actions" id="actions" style="display: none">
+            <button class="btn btn-primary" id="downloadPng">
+              💾 Download as PNG
+            </button>
+            <button class="btn btn-secondary" id="clearBtn">🗑️ Clear</button>
+          </div>
+
+          <div class="error-message" id="errorMessage"></div>
+          <div class="success-message" id="successMessage"></div>
+        </div>
+
+        <div class="info-section" id="infoSection" style="display: none">
+          <div class="info-group">
+            <div class="info-title">📊 Image Information</div>
+            <div class="info-item">
+              <span class="info-label">Width:</span>
+              <span class="info-value" id="infoWidth">-</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Height:</span>
+              <span class="info-value" id="infoHeight">-</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Color Type:</span>
+              <span class="info-value" id="infoColorType">-</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Compression:</span>
+              <span class="info-value" id="infoCompression">-</span>
+            </div>
+          </div>
+
+          <div class="info-group" id="metadataGroup">
+            <div class="info-title">📝 Metadata</div>
+            <div id="metadataContent"></div>
+          </div>
+
+          <div class="info-group">
+            <div class="info-title">📦 File Information</div>
+            <div class="info-item">
+              <span class="info-label">File Size:</span>
+              <span class="info-value" id="infoFileSize">-</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">File Name:</span>
+              <span class="info-value" id="infoFileName">-</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="main.js"></script>
+  </body>
+</html>
