@@ -1,21 +1,13 @@
+<h1 align="center">WK Image Format</h1>
+
 <p align="center">
   <img src="https://img.shields.io/badge/WK-Image%20Format-blueviolet?style=for-the-badge&logo=rust" alt="WK Format"/>
   <img src="https://img.shields.io/badge/version-2.0.0-blue?style=for-the-badge" alt="Version"/>
   <img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge" alt="License"/>
 </p>
 
-<h1 align="center">WK Image Format</h1>
-
 <p align="center">
   <strong>A production-grade image format with Predictive Compression and Adaptive Block Quantization</strong>
-</p>
-
-<p align="center">
-  <a href="#features">Features</a> •
-  <a href="#installation">Installation</a> •
-  <a href="#usage">Usage</a> •
-  <a href="#technical-details">Technical Details</a> •
-  <a href="#benchmarks">Benchmarks</a>
 </p>
 
 ---
@@ -257,5 +249,3 @@ MIT License - see [LICENSE](LICENSE) for details.
 ## 👨‍💻 Author
 
 **Inggrit Setya Budi** ([@cowoksoftspoken](https://github.com/cowoksoftspoken))
-
----
