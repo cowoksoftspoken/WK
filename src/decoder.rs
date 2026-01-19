@@ -1,10 +1,16 @@
-use crate::compression::rle_decompress;
+use crate::compression::{CompressionConfig, CompressionEngine};
 use crate::error::{WkError, WkResult};
-use crate::header::{ColorType, WkHeader};
-use crate::metadata::WkMetadata;
-use byteorder::{LittleEndian, ReadBytesExt};
+use crate::format::header::{ColorType, WkHeader};
+use crate::format::{ChunkReader, ChunkType};
+use crate::metadata::{CustomMetadata, ExifData, IccProfile, WkMetadata, XmpData};
 use image::{DynamicImage, ImageBuffer, Luma, LumaA, Rgb, Rgba};
 use std::io::Read;
+
+pub struct DecodedImage {
+    pub image: DynamicImage,
+    pub metadata: WkMetadata,
+    pub header: WkHeader,
+}
 
 pub struct WkDecoder;
 
@@ -13,81 +19,125 @@ impl WkDecoder {
         Self
     }
 
-    pub fn decode<R: Read>(&self, reader: &mut R) -> WkResult<(DynamicImage, WkMetadata)> {
-        let header = WkHeader::read(reader)?;
+    pub fn decode<R: Read>(&self, reader: R) -> WkResult<DecodedImage> {
+        let mut chunk_reader = ChunkReader::new(reader);
+        let chunks = chunk_reader.read_all_chunks()?;
 
-        let metadata = if header.metadata_size > 0 {
-            let mut metadata_bytes = vec![0u8; header.metadata_size as usize];
-            reader.read_exact(&mut metadata_bytes)?;
-            WkMetadata::decode(&metadata_bytes)?
-        } else {
-            WkMetadata::default()
-        };
+        let header_chunk = chunks
+            .iter()
+            .find(|c| matches!(c.chunk_type, ChunkType::ImageHeader))
+            .ok_or_else(|| WkError::MissingChunk("IHDR".into()))?;
 
-        let compressed_size = reader.read_u32::<LittleEndian>()? as usize;
+        let header = WkHeader::decode(&header_chunk.data)?;
 
-        let mut compressed_data = vec![0u8; compressed_size];
-        reader.read_exact(&mut compressed_data)?;
+        let mut metadata = WkMetadata::new();
 
-        let expected_size =
-            (header.width * header.height * header.color_type.channels() as u32) as usize;
-        let raw_data = if header.compression == 1 {
-            rle_decompress(&compressed_data, expected_size)?
-        } else {
-            if compressed_data.len() != expected_size {
-                return Err(WkError::InvalidFormat(format!(
-                    "Data size mismatch: expected {}, got {}",
-                    expected_size,
-                    compressed_data.len()
-                )));
+        for chunk in &chunks {
+            match chunk.chunk_type {
+                ChunkType::IccProfile => {
+                    if let Ok(icc) = bincode::deserialize::<IccProfile>(&chunk.data) {
+                        metadata.icc_profile = Some(icc);
+                    }
+                }
+                ChunkType::Exif => {
+                    if let Ok(exif) = bincode::deserialize::<ExifData>(&chunk.data) {
+                        metadata.exif = Some(exif);
+                    }
+                }
+                ChunkType::Xmp => {
+                    if let Ok(xmp) = bincode::deserialize::<XmpData>(&chunk.data) {
+                        metadata.xmp = Some(xmp);
+                    }
+                }
+                ChunkType::Custom => {
+                    if let Ok(custom) = bincode::deserialize::<CustomMetadata>(&chunk.data) {
+                        metadata.custom = custom;
+                    }
+                }
+                _ => {}
             }
-            compressed_data
+        }
+
+        let data_chunk = chunks
+            .iter()
+            .find(|c| {
+                matches!(
+                    c.chunk_type,
+                    ChunkType::ImageData | ChunkType::ImageDataLossy
+                )
+            })
+            .ok_or_else(|| WkError::MissingChunk("IDAT/IDLS".into()))?;
+
+        let is_lossy = matches!(data_chunk.chunk_type, ChunkType::ImageDataLossy);
+
+        let config = if is_lossy {
+            CompressionConfig::lossy(header.quality)
+        } else {
+            CompressionConfig::lossless()
         };
+
+        let engine = CompressionEngine::new(config);
+        let raw_data = engine.decompress(
+            &data_chunk.data,
+            header.width as usize,
+            header.height as usize,
+            header.color_type.channels() as usize,
+            header.compression_mode,
+        )?;
+
+        let image = self.raw_to_image(&raw_data, &header)?;
+
+        Ok(DecodedImage {
+            image,
+            metadata,
+            header,
+        })
+    }
+
+    fn raw_to_image(&self, data: &[u8], header: &WkHeader) -> WkResult<DynamicImage> {
+        let w = header.width;
+        let h = header.height;
 
         let image = match header.color_type {
-            ColorType::RGB => {
-                let img = ImageBuffer::<Rgb<u8>, Vec<u8>>::from_raw(
-                    header.width,
-                    header.height,
-                    raw_data,
-                )
-                .ok_or_else(|| WkError::DecodingError("Failed to create RGB image".to_string()))?;
-                DynamicImage::ImageRgb8(img)
-            }
-            ColorType::RGBA => {
-                let img = ImageBuffer::<Rgba<u8>, Vec<u8>>::from_raw(
-                    header.width,
-                    header.height,
-                    raw_data,
-                )
-                .ok_or_else(|| WkError::DecodingError("Failed to create RGBA image".to_string()))?;
-                DynamicImage::ImageRgba8(img)
-            }
             ColorType::Grayscale => {
-                let img = ImageBuffer::<Luma<u8>, Vec<u8>>::from_raw(
-                    header.width,
-                    header.height,
-                    raw_data,
-                )
-                .ok_or_else(|| {
-                    WkError::DecodingError("Failed to create grayscale image".to_string())
-                })?;
+                let img = ImageBuffer::<Luma<u8>, Vec<u8>>::from_raw(w, h, data.to_vec())
+                    .ok_or_else(|| {
+                        WkError::DecodingError("Failed to create grayscale image".into())
+                    })?;
                 DynamicImage::ImageLuma8(img)
             }
             ColorType::GrayscaleAlpha => {
-                let img = ImageBuffer::<LumaA<u8>, Vec<u8>>::from_raw(
-                    header.width,
-                    header.height,
-                    raw_data,
-                )
-                .ok_or_else(|| {
-                    WkError::DecodingError("Failed to create grayscale+alpha image".to_string())
-                })?;
+                let img = ImageBuffer::<LumaA<u8>, Vec<u8>>::from_raw(w, h, data.to_vec())
+                    .ok_or_else(|| {
+                        WkError::DecodingError("Failed to create grayscale+alpha image".into())
+                    })?;
                 DynamicImage::ImageLumaA8(img)
+            }
+            ColorType::Rgb | ColorType::Yuv420 | ColorType::Yuv444 => {
+                let img = ImageBuffer::<Rgb<u8>, Vec<u8>>::from_raw(w, h, data.to_vec())
+                    .ok_or_else(|| WkError::DecodingError("Failed to create RGB image".into()))?;
+                DynamicImage::ImageRgb8(img)
+            }
+            ColorType::Rgba => {
+                let img = ImageBuffer::<Rgba<u8>, Vec<u8>>::from_raw(w, h, data.to_vec())
+                    .ok_or_else(|| WkError::DecodingError("Failed to create RGBA image".into()))?;
+                DynamicImage::ImageRgba8(img)
             }
         };
 
-        Ok((image, metadata))
+        Ok(image)
+    }
+
+    pub fn decode_header<R: Read>(&self, reader: R) -> WkResult<WkHeader> {
+        let mut chunk_reader = ChunkReader::new(reader);
+        chunk_reader.verify_magic()?;
+
+        let chunk = chunk_reader.read_chunk()?;
+        if !matches!(chunk.chunk_type, ChunkType::ImageHeader) {
+            return Err(WkError::InvalidFormat("First chunk must be IHDR".into()));
+        }
+
+        WkHeader::decode(&chunk.data)
     }
 }
 

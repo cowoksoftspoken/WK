@@ -1,98 +1,134 @@
-// src/lib.rs
-
-//! WK Image Format Library
-//!
-//! Format gambar custom dengan fitur:
-//! - RLE compression untuk efisiensi
-//! - Metadata support (author, description, custom fields)
-//! - Multiple color types (RGB, RGBA, Grayscale, GrayscaleAlpha)
-//! - Konversi dari/ke PNG, JPEG, WebP, HEIC
-
-pub mod compression; // Made public for testing
+pub mod animation;
+pub mod compression;
 pub mod converter;
 pub mod decoder;
 pub mod encoder;
 pub mod error;
-pub mod header;
+pub mod format;
 pub mod metadata;
 
+pub use compression::{CompressionConfig, CompressionEngine};
 pub use converter::WkConverter;
-pub use decoder::WkDecoder;
+pub use decoder::{DecodedImage, WkDecoder};
 pub use encoder::WkEncoder;
 pub use error::{WkError, WkResult};
-pub use header::{ColorType, WkHeader};
-pub use metadata::WkMetadata;
+pub use format::header::{ColorType, CompressionMode, WkHeader};
+pub use format::{Chunk, ChunkType};
+pub use metadata::{CustomMetadata, ExifData, ExifTag, IccProfile, WkMetadata, XmpData};
+
+pub const VERSION: &str = "2.0.0";
+pub const MAGIC: &[u8; 8] = b"WK2.0\x00\x00\x00";
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use image::{DynamicImage, RgbImage};
+    use image::{DynamicImage, RgbImage, RgbaImage};
 
     #[test]
-    fn test_header_write_read() {
-        let header = WkHeader::new(100, 100, ColorType::RGB);
-        let mut buffer = Vec::new();
-        header.write(&mut buffer).unwrap();
-
-        let read_header = WkHeader::read(&mut buffer.as_slice()).unwrap();
-        assert_eq!(read_header.width, 100);
-        assert_eq!(read_header.height, 100);
-    }
-
-    #[test]
-    fn test_compression() {
-        use crate::compression::{rle_compress, rle_decompress};
-
-        let data = vec![1, 1, 1, 1, 2, 3, 4, 4, 4];
-        let compressed = rle_compress(&data).unwrap();
-        let decompressed = rle_decompress(&compressed, data.len()).unwrap();
-
-        assert_eq!(data, decompressed);
-    }
-
-    #[test]
-    fn test_encode_decode_rgb() {
-        // Buat image test sederhana
-        let img = DynamicImage::ImageRgb8(RgbImage::from_fn(10, 10, |x, y| {
-            image::Rgb([(x * 25) as u8, (y * 25) as u8, 128])
+    fn test_lossless_roundtrip() {
+        let img = DynamicImage::ImageRgb8(RgbImage::from_fn(32, 32, |x, y| {
+            image::Rgb([(x * 8) as u8, (y * 8) as u8, 128])
         }));
 
-        // Encode
-        let mut buffer = Vec::new();
-        let encoder = WkEncoder::new();
-        let result = encoder.encode(&img, &mut buffer);
+        let encoder = WkEncoder::lossless();
+        let encoded = encoder.encode_to_vec(&img).unwrap();
 
-        if let Err(e) = &result {
-            eprintln!("Encode error: {:?}", e);
-        }
-        assert!(result.is_ok(), "Encoding failed");
-
-        // Decode
         let decoder = WkDecoder::new();
-        let decode_result = decoder.decode(&mut buffer.as_slice());
+        let decoded = decoder.decode(encoded.as_slice()).unwrap();
 
-        if let Err(e) = &decode_result {
-            eprintln!("Decode error: {:?}", e);
-            eprintln!("Buffer size: {}", buffer.len());
-        }
+        assert_eq!(decoded.image.width(), 32);
+        assert_eq!(decoded.image.height(), 32);
+    }
 
-        let (decoded_img, _metadata) = decode_result.unwrap();
+    #[test]
+    fn test_lossy_roundtrip() {
+        let img = DynamicImage::ImageRgb8(RgbImage::from_fn(64, 64, |x, y| {
+            image::Rgb([(x * 4) as u8, (y * 4) as u8, 200])
+        }));
 
-        // Verifikasi dimensi
-        assert_eq!(decoded_img.width(), 10);
-        assert_eq!(decoded_img.height(), 10);
+        let encoder = WkEncoder::lossy(85);
+        let encoded = encoder.encode_to_vec(&img).unwrap();
+
+        let decoder = WkDecoder::new();
+        let decoded = decoder.decode(encoded.as_slice()).unwrap();
+
+        assert_eq!(decoded.image.width(), 64);
+        assert_eq!(decoded.image.height(), 64);
+    }
+
+    #[test]
+    fn test_rgba_support() {
+        let img = DynamicImage::ImageRgba8(RgbaImage::from_fn(16, 16, |x, y| {
+            image::Rgba([(x * 16) as u8, (y * 16) as u8, 100, ((x + y) * 8) as u8])
+        }));
+
+        let encoder = WkEncoder::lossless();
+        let encoded = encoder.encode_to_vec(&img).unwrap();
+
+        let decoder = WkDecoder::new();
+        let decoded = decoder.decode(encoded.as_slice()).unwrap();
+
+        assert!(decoded.header.has_alpha);
     }
 
     #[test]
     fn test_metadata() {
         let mut metadata = WkMetadata::new();
-        metadata.author = Some("Test Author".to_string());
-        metadata.add_custom_field("test_key".to_string(), "test_value".to_string());
+        metadata.custom.author = Some("Test Author".into());
+        metadata.custom.set("key", "value");
 
-        let encoded = metadata.encode().unwrap();
-        let decoded = WkMetadata::decode(&encoded).unwrap();
+        let img =
+            DynamicImage::ImageRgb8(RgbImage::from_fn(8, 8, |_, _| image::Rgb([100, 100, 100])));
 
-        assert_eq!(decoded.author, Some("Test Author".to_string()));
-        assert_eq!(decoded.custom_fields.get("test_key").unwrap(), "test_value");
+        let encoder = WkEncoder::lossy(90).with_metadata(metadata);
+        let encoded = encoder.encode_to_vec(&img).unwrap();
+
+        let decoder = WkDecoder::new();
+        let decoded = decoder.decode(encoded.as_slice()).unwrap();
+
+        assert_eq!(
+            decoded.metadata.custom.author.as_deref(),
+            Some("Test Author")
+        );
+    }
+
+    #[test]
+    fn test_exif_metadata() {
+        use metadata::exif::ExifBuilder;
+
+        let exif = ExifBuilder::new()
+            .make("Canon")
+            .model("EOS R5")
+            .iso(800)
+            .aperture(2.8)
+            .build();
+
+        let metadata = WkMetadata::new().with_exif(exif);
+
+        let img = DynamicImage::ImageRgb8(RgbImage::from_fn(8, 8, |_, _| image::Rgb([50, 50, 50])));
+        let encoder = WkEncoder::lossy(85).with_metadata(metadata);
+        let encoded = encoder.encode_to_vec(&img).unwrap();
+
+        let decoder = WkDecoder::new();
+        let decoded = decoder.decode(encoded.as_slice()).unwrap();
+
+        let exif = decoded.metadata.exif.unwrap();
+        assert_eq!(exif.camera_make(), Some("Canon"));
+        assert_eq!(exif.camera_model(), Some("EOS R5"));
+        assert_eq!(exif.iso(), Some(800));
+    }
+
+    #[test]
+    fn test_compression_ratio() {
+        let img = DynamicImage::ImageRgb8(RgbImage::from_fn(128, 128, |_, _| {
+            image::Rgb([100, 100, 100])
+        }));
+
+        let lossless_enc = WkEncoder::lossless().encode_to_vec(&img).unwrap();
+        let lossy_enc = WkEncoder::lossy(50).encode_to_vec(&img).unwrap();
+        let raw_size = 128 * 128 * 3;
+
+        assert!(lossless_enc.len() < raw_size);
+        assert!(lossy_enc.len() < lossless_enc.len());
     }
 }
