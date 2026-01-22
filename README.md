@@ -2,34 +2,54 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/WK-Image%20Format-blueviolet?style=for-the-badge&logo=rust" alt="WK Format"/>
-  <img src="https://img.shields.io/badge/version-2.0.0-blue?style=for-the-badge" alt="Version"/>
+  <img src="https://img.shields.io/badge/version-3.0.0-blue?style=for-the-badge" alt="Version"/>
   <img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge" alt="License"/>
 </p>
 
 <p align="center">
-  <strong>A production-grade image format with Predictive Compression and Adaptive Block Quantization</strong>
+  <strong>Production-grade image format with CABAC, Multi-block DCT, HDR, and Animation support</strong>
 </p>
 
 ---
 
 ## ✨ Features
 
-| Feature                       | Description                                                   |
-| ----------------------------- | ------------------------------------------------------------- |
-| 🎯 **Lossy & Lossless**       | Both compression modes with quality control (1-100)           |
-| 🔮 **Predictive Compression** | 5 filters (None, Sub, Up, Average, Paeth) with auto-selection |
-| 📦 **8x8 DCT Transform**      | JPEG-compatible discrete cosine transform                     |
-| ⚡ **Adaptive Quantization**  | Quality-dependent compression with perceptual weighting       |
-| 🔐 **CRC32 Integrity**        | Per-chunk data verification                                   |
-| 📸 **EXIF Metadata**          | Camera info, GPS, ISO, aperture, focal length                 |
-| 🎨 **ICC Color Profiles**     | sRGB, Adobe RGB, Display P3, ProPhoto RGB, Rec.2020           |
-| 📝 **XMP Metadata**           | Title, description, creators, ratings, subjects               |
-| 🎬 **Animation Support**      | Frame delay, blend modes, dispose modes                       |
-| 🔌 **Extensible**             | Chunk-based format for future additions                       |
+### Compression Engine
+
+| Feature                      | Description                                |
+| ---------------------------- | ------------------------------------------ |
+| 🎯 **CABAC**                 | Context-Adaptive Binary Arithmetic Coding  |
+| 🔮 **Intra-Prediction**      | 11 modes (DC, Angular, Planar, TrueMotion) |
+| 📦 **Multi-block DCT**       | 8×8, 16×16, 32×32 block sizes              |
+| ⚡ **Adaptive Quantization** | CSF-weighted perceptual optimization       |
+| 🎨 **Color Space**           | YCbCr (BT.601, BT.709, BT.2020)            |
+| 📊 **Chroma Subsampling**    | 4:2:0, 4:4:4 support                       |
+
+### HDR & Wide Gamut
+
+| Feature                   | Description                   |
+| ------------------------- | ----------------------------- |
+| 🌈 **Bit Depth**          | 8, 10, 12, 16-bit support     |
+| ☀️ **Transfer Functions** | PQ (HDR10), HLG               |
+| 🖥️ **Color Gamuts**       | sRGB, Adobe RGB, P3, Rec.2020 |
+
+### Animation
+
+| Feature                  | Description                            |
+| ------------------------ | -------------------------------------- |
+| 🎬 **Frame Types**       | I-frames (keyframes), P-frames (delta) |
+| 🔄 **Motion Estimation** | Diamond, Hexagon, Three-Step search    |
+| ⏱️ **Temporal RDO**      | Optimized keyframe placement           |
+
+### Performance
+
+| Feature          | Description                            |
+| ---------------- | -------------------------------------- |
+| 🚀 **SIMD**      | SSE4.2 / AVX2 acceleration             |
+| 🔧 **Parallel**  | Tile-based multi-threaded encoding     |
+| 📡 **Streaming** | Progressive decode with resync markers |
 
 ## 📦 Installation
-
-### From Source
 
 ```bash
 git clone https://github.com/cowoksoftspoken/WK.git
@@ -37,7 +57,7 @@ cd WK
 cargo build --release
 ```
 
-### With Viewer (GUI)
+### With Viewer
 
 ```bash
 cargo build --release --features viewer
@@ -45,60 +65,52 @@ cargo build --release --features viewer
 
 ## 🚀 Usage
 
-### CLI Commands
+### CLI
 
 ```bash
-# Encode image to WK (lossy)
+# Encode (lossy)
 wkconverter encode input.jpg output.wk 85
 
-# Encode lossless
+# Encode (lossless)
 wkconverter lossless input.png output.wk
 
-# Decode WK to image
+# Decode
 wkconverter decode input.wk output.png
 
-# View file information
+# Info
 wkconverter info input.wk
 
-# Run benchmark
-wkconverter benchmark input.jpg ./output_dir
+# Benchmark
+wkconverter benchmark input.jpg ./output/
 ```
 
-### GUI Viewer
+### Viewer
 
 ```bash
 ./target/release/wkviewer
 ```
 
-- Drag & drop any image (PNG, JPEG, WebP, BMP, GIF, TIFF)
-- Convert to WK format with quality slider
-- View file metadata and compression info
+Features:
 
-### Rust Library
+- 🔍 Zoom/Pan (mouse wheel + drag)
+- 📈 RGB Histogram
+- ⏱️ Decode time metrics
+- 🔄 Convert any image to WK
+- ⚙️ Advanced compression options
+
+### Library
 
 ```rust
 use wk_format::{WkEncoder, WkDecoder, WkMetadata};
-use wk_format::metadata::exif::ExifBuilder;
-use wk_format::metadata::icc::IccProfile;
+use wk_format::compression::{IntraMode, IntraPredictor, AdaptiveQuantizer};
 
-// Encode with metadata
-let exif = ExifBuilder::new()
-    .make("Canon")
-    .model("EOS R5")
-    .iso(800)
-    .build();
-
-let metadata = WkMetadata::new()
-    .with_exif(exif)
-    .with_icc(IccProfile::srgb());
-
-let encoder = WkEncoder::lossy(85).with_metadata(metadata);
+// Encode with adaptive quantization
+let encoder = WkEncoder::lossy(85);
 let encoded = encoder.encode_to_vec(&image)?;
 
-// Decode
-let decoder = WkDecoder::new();
-let decoded = decoder.decode(&encoded[..])?;
-println!("{}x{}", decoded.image.width(), decoded.image.height());
+// Use intra-prediction
+let predictor = IntraPredictor::new(8);
+let (best_mode, sad) = predictor.select_best_mode(&block, &top, &left, top_left);
 ```
 
 ## 🔧 Technical Details
@@ -107,144 +119,61 @@ println!("{}x{}", decoded.image.width(), decoded.image.height());
 
 ```
 ┌─────────────────────────────────────┐
-│ Magic Number: "WK2.0\x00\x00\x00"   │  8 bytes
+│ Magic: "WK2.0\x00\x00\x00"          │
 ├─────────────────────────────────────┤
-│ IHDR Chunk (Image Header)           │
-│ ├─ Width, Height                    │
-│ ├─ Color Type, Compression Mode     │
-│ └─ Quality, Flags, Bit Depth        │
+│ IHDR (Header)                       │
+│ ├─ Dimensions, Color Type           │
+│ ├─ Compression Mode, Quality        │
+│ └─ HDR Metadata                     │
 ├─────────────────────────────────────┤
-│ ICCP Chunk (ICC Profile) [optional] │
+│ ICCP (ICC Profile)                  │
 ├─────────────────────────────────────┤
-│ EXIF Chunk (EXIF Data) [optional]   │
+│ IDAT (Image Data)                   │
+│ ├─ Quantization Tables              │
+│ ├─ Intra-Prediction Modes           │
+│ └─ CABAC Encoded Coefficients       │
 ├─────────────────────────────────────┤
-│ XMP Chunk (XMP Data) [optional]     │
-├─────────────────────────────────────┤
-│ IDAT/IDLS Chunk (Image Data)        │
-│ ├─ Quantization Tables (lossy)      │
-│ └─ Compressed Coefficients          │
-├─────────────────────────────────────┤
-│ IEND Chunk (End Marker)             │
+│ IEND (End)                          │
 └─────────────────────────────────────┘
 ```
 
 ### Compression Pipeline
 
-**Lossless Mode:**
+**Lossless:**
 
 ```
-Image → Predictive Filter (optimal per-row) → Huffman Encoding → Output
+Image → Predictor (optimal) → Huffman → Output
 ```
 
-**Lossy Mode:**
+**Lossy:**
 
 ```
-Image → 8x8 Blocks → DCT → Quantization → Zigzag → RLE → Huffman → Output
+Image → YCbCr → Intra-Pred → DCT → Quantize (CSF) → CABAC → Output
 ```
-
-### Supported Color Types
-
-| Type             | Channels | Description                |
-| ---------------- | -------- | -------------------------- |
-| `Grayscale`      | 1        | Single channel             |
-| `GrayscaleAlpha` | 2        | Grayscale + Alpha          |
-| `Rgb`            | 3        | Red, Green, Blue           |
-| `Rgba`           | 4        | RGB + Alpha                |
-| `Yuv420`         | 3        | YUV with 4:2:0 subsampling |
-| `Yuv444`         | 3        | YUV without subsampling    |
-
-## 📊 Benchmarks
-
-Quality vs File Size (217x233 test image):
-
-| Quality | Mode     | File Size | Ratio |
-| ------- | -------- | --------- | ----- |
-| 100     | Lossless | 86 KB     | 57%   |
-| 95      | Lossy    | 46 KB     | 31%   |
-| 85      | Lossy    | 26 KB     | 17%   |
-| 50      | Lossy    | 15 KB     | 10%   |
-| 25      | Lossy    | 8 KB      | 5%    |
-
-## 🆚 Comparison with Other Formats
-
-| Feature     | WK v2.0 | WebP | JPEG | PNG |
-| ----------- | ------- | ---- | ---- | --- |
-| Lossy       | ✅      | ✅   | ✅   | ❌  |
-| Lossless    | ✅      | ✅   | ❌   | ✅  |
-| Alpha       | ✅      | ✅   | ❌   | ✅  |
-| Animation   | ✅      | ✅   | ❌   | ❌  |
-| EXIF        | ✅      | ✅   | ✅   | ❌  |
-| ICC Profile | ✅      | ✅   | ✅   | ✅  |
-| XMP         | ✅      | ✅   | ✅   | ✅  |
-| Extensible  | ✅      | ✅   | ❌   | ✅  |
-| Open Source | ✅      | ✅   | ✅   | ✅  |
 
 ## 📁 Project Structure
 
 ```
-WK/
-├── src/
-│   ├── lib.rs              # Library exports
-│   ├── main.rs             # CLI (wkconverter)
-│   ├── encoder.rs          # WK encoder
-│   ├── decoder.rs          # WK decoder
-│   ├── converter.rs        # High-level converter
-│   ├── error.rs            # Error types
-│   ├── format/
-│   │   ├── chunk.rs        # Chunk container
-│   │   └── header.rs       # File header
-│   ├── compression/
-│   │   ├── dct.rs          # DCT/IDCT transform
-│   │   ├── quantizer.rs    # Adaptive quantization
-│   │   ├── predictor.rs    # Predictive filters
-│   │   ├── entropy.rs      # Huffman coding
-│   │   └── engine.rs       # Compression engine
-│   ├── metadata/
-│   │   ├── exif.rs         # EXIF support
-│   │   ├── icc.rs          # ICC profiles
-│   │   ├── xmp.rs          # XMP metadata
-│   │   └── custom.rs       # Custom fields
-│   ├── animation/
-│   │   └── frame.rs        # Animation frames
-│   └── bin/
-│       ├── viewer.rs       # GUI viewer (egui)
-│       └── debug.rs        # Debug tool
-└── viewer/
-    ├── index.html          # Web viewer
-    ├── main.js             # JavaScript decoder
-    └── styles.css          # Viewer styles
-```
-
-## 🌐 Web Viewer
-
-Open `viewer/index.html` in a browser to view WK files without installing anything.
-
-Features:
-
-- Drag & drop WK files
-- View image info and metadata
-- Download as PNG
-- Supports WK v2.0 format
-
-## 🛠️ Building
-
-```bash
-# Debug build
-cargo build
-
-# Release build
-cargo build --release
-
-# With viewer feature
-cargo build --release --features viewer
-
-# Run tests
-cargo test
+src/
+├── compression/
+│   ├── multi_dct.rs      # Multi-block DCT (8×8, 16×16)
+│   ├── intra_prediction.rs # 11 prediction modes
+│   ├── cabac.rs          # Arithmetic coding
+│   ├── adaptive_quant.rs # CSF-weighted quantization
+│   ├── color.rs          # YCbCr conversion
+│   └── simd.rs           # SSE4/AVX2 acceleration
+├── format/
+│   ├── hdr.rs            # HDR/PQ/HLG support
+│   └── progressive.rs    # Tiling & streaming
+├── animation/
+│   └── motion.rs         # Motion estimation
+└── bin/
+    └── viewer.rs         # GUI with histogram
 ```
 
 ## 📜 License
 
-MIT License - see [LICENSE](LICENSE) for details
+MIT License
 
 ## 👨‍💻 Author
 

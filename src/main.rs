@@ -73,9 +73,9 @@ fn encode_image(input: &str, output: &str, quality: u8) -> WkResult<()> {
 
     let img = image::open(input)?;
 
-    let exif = ExifBuilder::new().software("WK Image Format v2.0").build();
+    let exif = ExifBuilder::new().software("WK Image Format v3.0").build();
 
-    let xmp = XmpBuilder::new().creator_tool("WK Converter v2.0").build();
+    let xmp = XmpBuilder::new().creator_tool("WK Converter v3.0").build();
 
     let metadata = WkMetadata::new()
         .with_exif(exif)
@@ -186,7 +186,7 @@ fn show_info(input: &str) -> WkResult<()> {
 
     println!();
     println!("{}", "═══ WK Image Information ═══".cyan().bold());
-    println!("{} {}", "Version:".dimmed(), "2.0".green());
+    println!("{} {}", "Version:".dimmed(), "3.0".green());
     println!(
         "{} {}x{}",
         "Dimensions:".dimmed(),
@@ -390,7 +390,7 @@ fn print_usage() {
     println!(
         "{} {}",
         "WK Image Format Converter".cyan().bold(),
-        "v2.0".green()
+        "v3.0".green()
     );
     println!();
     println!("{}", "USAGE:".yellow().bold());

@@ -3,89 +3,107 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>WK Image Viewer</title>
+    <title>WK Image Viewer v3.0</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <div class="container">
-      <div class="header">
-        <h1>🖼️ WK Image Viewer</h1>
-        <p>View and analyze .wk image files</p>
-      </div>
+    <div class="app">
+      <header class="header">
+        <div class="logo">
+          <span class="logo-icon">⚡</span>
+          <span class="logo-text">WK Viewer</span>
+          <span class="version">v3.0</span>
+        </div>
+        <nav class="nav">
+          <button class="nav-btn active" id="viewBtn">View</button>
+          <button class="nav-btn" id="convertBtn">Convert</button>
+          <button class="nav-btn" id="infoBtn">Info</button>
+        </nav>
+      </header>
 
-      <div class="content">
-        <div class="viewer-section">
-          <div class="upload-area" id="uploadArea">
-            <div class="upload-icon">📁</div>
-            <div class="upload-text">Drop .wk file here</div>
-            <div class="upload-hint">or click to browse</div>
-            <input type="file" id="fileInput" accept=".wk" />
+      <main class="main">
+        <div class="sidebar">
+          <div class="panel">
+            <h3>Image Info</h3>
+            <div class="info-grid">
+              <span class="label">Size:</span>
+              <span class="value" id="imgSize">-</span>
+              <span class="label">Format:</span>
+              <span class="value" id="imgFormat">-</span>
+              <span class="label">Quality:</span>
+              <span class="value" id="imgQuality">-</span>
+              <span class="label">Mode:</span>
+              <span class="value" id="imgMode">-</span>
+            </div>
           </div>
 
-          <div class="loading" id="loading">
-            <div class="spinner"></div>
-            <div>Loading WK file...</div>
+          <div class="panel">
+            <h3>v3.0 Features</h3>
+            <div class="feature-list">
+              <div class="feature">
+                <span class="check">✓</span> Block-independent CABAC
+              </div>
+              <div class="feature">
+                <span class="check">✓</span> Intra-prediction (11 modes)
+              </div>
+              <div class="feature">
+                <span class="check">✓</span> Adaptive quantization
+              </div>
+              <div class="feature">
+                <span class="check">✓</span> HDR 10/12-bit
+              </div>
+              <div class="feature">
+                <span class="check">✓</span> SIMD acceleration
+              </div>
+            </div>
           </div>
 
-          <div
-            class="canvas-container"
-            id="canvasContainer"
-            style="display: none"
-          >
+          <div class="panel">
+            <h3>Histogram</h3>
+            <canvas id="histogram" width="200" height="80"></canvas>
+          </div>
+
+          <div class="panel">
+            <h3>Actions</h3>
+            <button class="btn primary" id="downloadPng">Download PNG</button>
+            <button class="btn" id="downloadWk">Download WK</button>
+            <button class="btn danger" id="clearBtn">Clear</button>
+          </div>
+        </div>
+
+        <div class="viewer">
+          <div class="dropzone" id="dropzone">
+            <div class="dropzone-content">
+              <div class="dropzone-icon">📁</div>
+              <div class="dropzone-text">Drop WK or image file here</div>
+              <div class="dropzone-hint">Supports: .wk, .png, .jpg, .webp</div>
+              <input
+                type="file"
+                id="fileInput"
+                accept=".wk,.png,.jpg,.jpeg,.webp"
+              />
+            </div>
+          </div>
+          <div class="canvas-wrapper" id="canvasWrapper" style="display: none">
             <canvas id="canvas"></canvas>
           </div>
-
-          <div class="actions" id="actions" style="display: none">
-            <button class="btn btn-primary" id="downloadPng">
-              💾 Download as PNG
-            </button>
-            <button class="btn btn-secondary" id="clearBtn">🗑️ Clear</button>
-          </div>
-
-          <div class="error-message" id="errorMessage"></div>
-          <div class="success-message" id="successMessage"></div>
-        </div>
-
-        <div class="info-section" id="infoSection" style="display: none">
-          <div class="info-group">
-            <div class="info-title">📊 Image Information</div>
-            <div class="info-item">
-              <span class="info-label">Width:</span>
-              <span class="info-value" id="infoWidth">-</span>
-            </div>
-            <div class="info-item">
-              <span class="info-label">Height:</span>
-              <span class="info-value" id="infoHeight">-</span>
-            </div>
-            <div class="info-item">
-              <span class="info-label">Color Type:</span>
-              <span class="info-value" id="infoColorType">-</span>
-            </div>
-            <div class="info-item">
-              <span class="info-label">Compression:</span>
-              <span class="info-value" id="infoCompression">-</span>
-            </div>
-          </div>
-
-          <div class="info-group" id="metadataGroup">
-            <div class="info-title">📝 Metadata</div>
-            <div id="metadataContent"></div>
-          </div>
-
-          <div class="info-group">
-            <div class="info-title">📦 File Information</div>
-            <div class="info-item">
-              <span class="info-label">File Size:</span>
-              <span class="info-value" id="infoFileSize">-</span>
-            </div>
-            <div class="info-item">
-              <span class="info-label">File Name:</span>
-              <span class="info-value" id="infoFileName">-</span>
-            </div>
+          <div class="loading" id="loading" style="display: none">
+            <div class="spinner"></div>
+            <span>Processing...</span>
           </div>
         </div>
-      </div>
+      </main>
+
+      <footer class="footer">
+        <span>WK Image Format v3.0</span>
+        <span class="separator">|</span>
+        <span>Block-independent entropy coding</span>
+        <span class="separator">|</span>
+        <span id="status">Ready</span>
+      </footer>
     </div>
+
+    <div class="toast" id="toast"></div>
 
     <script src="main.js"></script>
   </body>

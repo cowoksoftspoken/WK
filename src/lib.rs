@@ -1,3 +1,8 @@
+#![allow(clippy::too_many_arguments)]
+#![allow(clippy::needless_range_loop)]
+#![allow(clippy::unnecessary_cast)]
+#![allow(clippy::derivable_impls)]
+
 pub mod animation;
 pub mod compression;
 pub mod converter;
@@ -6,6 +11,9 @@ pub mod encoder;
 pub mod error;
 pub mod format;
 pub mod metadata;
+
+#[cfg(all(target_arch = "wasm32", feature = "wasm"))]
+pub mod wasm;
 
 pub use compression::{CompressionConfig, CompressionEngine};
 pub use converter::WkConverter;
@@ -16,8 +24,8 @@ pub use format::header::{ColorType, CompressionMode, WkHeader};
 pub use format::{Chunk, ChunkType};
 pub use metadata::{CustomMetadata, ExifData, ExifTag, IccProfile, WkMetadata, XmpData};
 
-pub const VERSION: &str = "2.0.0";
-pub const MAGIC: &[u8; 8] = b"WK2.0\x00\x00\x00";
+pub const VERSION: &str = "3.0.0";
+pub const MAGIC: &[u8; 8] = b"WK3.0\x00\x00\x00";
 
 #[cfg(test)]
 mod tests {

@@ -49,6 +49,7 @@ pub struct AnimationFrame {
     pub height: u32,
     pub blend_mode: BlendMode,
     pub dispose_mode: DisposeMode,
+    pub is_keyframe: bool,
     pub data: Vec<u8>,
 }
 
@@ -62,6 +63,7 @@ impl AnimationFrame {
             height,
             blend_mode: BlendMode::default(),
             dispose_mode: DisposeMode::default(),
+            is_keyframe: true,
             data,
         }
     }
