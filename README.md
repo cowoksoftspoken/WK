@@ -119,7 +119,7 @@ let (best_mode, sad) = predictor.select_best_mode(&block, &top, &left, top_left)
 
 ```
 ┌─────────────────────────────────────┐
-│ Magic: "WK2.0\x00\x00\x00"          │
+│ Magic: "WK3.0\x00\x00\x00"          │
 ├─────────────────────────────────────┤
 │ IHDR (Header)                       │
 │ ├─ Dimensions, Color Type           │
