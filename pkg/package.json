@@ -1,0 +1,24 @@
+{
+  "name": "wk-image-format",
+  "type": "module",
+  "collaborators": [
+    "Inggrit Setya Budi"
+  ],
+  "description": "WK Image Format - Production-grade image format with CABAC, Multi-block DCT, HDR, and Animation support",
+  "version": "3.0.0",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cowoksoftspoken/WK"
+  },
+  "files": [
+    "wk_format_bg.wasm",
+    "wk_format.js",
+    "wk_format.d.ts"
+  ],
+  "main": "wk_format.js",
+  "types": "wk_format.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}
