@@ -274,7 +274,6 @@ impl IntraPredictor {
         (best_mode, best_sad)
     }
 
-    /// Compute residual: block - prediction
     pub fn compute_residual(&self, block: &[u8], prediction: &[u8]) -> Vec<i16> {
         block
             .iter()
@@ -283,7 +282,6 @@ impl IntraPredictor {
             .collect()
     }
 
-    /// Reconstruct: prediction + residual with safe clamping
     pub fn reconstruct(&self, prediction: &[u8], residual: &[i16]) -> Vec<u8> {
         prediction
             .iter()
