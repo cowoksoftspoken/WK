@@ -1,6 +1,7 @@
 use super::adaptive_quant::{AdaptiveQuantizer, QuantTable};
 use super::cabac::{
-    decode_coefficients, encode_coefficients, ArithmeticDecoder, ArithmeticEncoder, CABACContext,
+    compress_coefficients, decode_coefficients, decompress_coefficients, encode_coefficients,
+    ArithmeticDecoder, ArithmeticEncoder, CABACContext,
 };
 use super::dct::{dct_8x8_fast, idct_8x8_fast, zigzag_scan, zigzag_unscan};
 use super::entropy::{EntropyDecoder, EntropyEncoder};
@@ -74,10 +75,7 @@ impl CompressionConfig {
         }
     }
 
-    /// Experimental v3 features (CABAC, intra-prediction, adaptive quantization)
-    /// WARNING: These features are still under development and may produce artifacts
-    #[allow(dead_code)]
-    pub fn lossy_experimental(quality: u8) -> Self {
+    pub fn lossy_v3(quality: u8) -> Self {
         Self {
             mode: CompressionMode::Lossy,
             quality: quality.clamp(1, 100),
@@ -152,11 +150,11 @@ impl CompressionEngine {
         });
         output.push(if self.config.use_adaptive_quant { 1 } else { 0 });
 
-        let base_table = QuantTable::for_quality(self.config.quality, false);
+        let base_table = QuantTable::aggressive(self.config.quality, false);
         for &v in &base_table.table {
             output.extend(&v.to_le_bytes());
         }
-        let chroma_table = QuantTable::for_quality(self.config.quality, true);
+        let chroma_table = QuantTable::aggressive(self.config.quality, true);
         for &v in &chroma_table.table {
             output.extend(&v.to_le_bytes());
         }
@@ -201,7 +199,6 @@ impl CompressionEngine {
                     let (top, left, top_left) = self.get_neighbors(&padded, padded_w, bx, by);
 
                     let (mode, residual) = if self.config.use_intra_prediction && !is_chroma {
-                        // Use edge-aware mode selection for first row/column
                         let is_first_row = by == 0;
                         let is_first_col = bx == 0;
                         let (best_mode, _) = predictor.select_best_mode_edge(
@@ -278,7 +275,9 @@ impl CompressionEngine {
             }
         }
 
-        output.extend(all_data);
+        let compressed = compress_coefficients(&all_data);
+        output.extend(&(compressed.len() as u32).to_le_bytes());
+        output.extend(compressed);
         Ok(output)
     }
 
@@ -308,7 +307,12 @@ impl CompressionEngine {
             chroma_table[i] = u16::from_le_bytes([data[131 + i * 2], data[131 + i * 2 + 1]]);
         }
 
-        let mut pos = 259usize;
+        let compressed_len =
+            u32::from_le_bytes([data[259], data[260], data[261], data[262]]) as usize;
+        let compressed_data = &data[263..263 + compressed_len.min(data.len().saturating_sub(263))];
+        let all_data = decompress_coefficients(compressed_data);
+
+        let mut pos = 0usize;
         let block_width = (width + 7) / 8;
         let block_height = (height + 7) / 8;
         let padded_w = block_width * 8;
@@ -321,25 +325,34 @@ impl CompressionEngine {
         for ch in 0..channels {
             let is_chroma = ch > 0 && channels >= 3;
 
-            let modes_len =
-                u32::from_le_bytes([data[pos], data[pos + 1], data[pos + 2], data[pos + 3]])
-                    as usize;
+            let modes_len = u32::from_le_bytes([
+                all_data[pos],
+                all_data[pos + 1],
+                all_data[pos + 2],
+                all_data[pos + 3],
+            ]) as usize;
             pos += 4;
-            let modes: Vec<u8> = data[pos..pos + modes_len].to_vec();
+            let modes: Vec<u8> = all_data[pos..pos + modes_len].to_vec();
             pos += modes_len;
 
-            let qps_len =
-                u32::from_le_bytes([data[pos], data[pos + 1], data[pos + 2], data[pos + 3]])
-                    as usize;
+            let qps_len = u32::from_le_bytes([
+                all_data[pos],
+                all_data[pos + 1],
+                all_data[pos + 2],
+                all_data[pos + 3],
+            ]) as usize;
             pos += 4;
-            let qps: Vec<u8> = data[pos..pos + qps_len].to_vec();
+            let qps: Vec<u8> = all_data[pos..pos + qps_len].to_vec();
             pos += qps_len;
 
-            let coeffs_len =
-                u32::from_le_bytes([data[pos], data[pos + 1], data[pos + 2], data[pos + 3]])
-                    as usize;
+            let coeffs_len = u32::from_le_bytes([
+                all_data[pos],
+                all_data[pos + 1],
+                all_data[pos + 2],
+                all_data[pos + 3],
+            ]) as usize;
             pos += 4;
-            let coeffs_data = &data[pos..pos + coeffs_len];
+            let coeffs_data = &all_data[pos..pos + coeffs_len];
             pos += coeffs_len;
 
             let all_coeffs: Vec<Vec<i16>> = if use_cabac {

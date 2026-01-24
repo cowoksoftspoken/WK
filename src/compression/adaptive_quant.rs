@@ -35,6 +35,19 @@ impl QuantTable {
         Self { table }
     }
 
+    pub fn optimized_for_size(quality: u8, is_chroma: bool) -> Self {
+        let base = if is_chroma { JPEG_CHROMA } else { JPEG_LUMA };
+        let q = quality.clamp(1, 100) as u32;
+        let base_scale = if q < 50 { 5000 / q } else { 200 - q * 2 };
+        let scale = (base_scale * 115 / 100).max(15);
+        let mut table = [0u16; 64];
+        for i in 0..64 {
+            let val = (base[i] as u32 * scale + 50) / 100;
+            table[i] = val.clamp(1, 255) as u16;
+        }
+        Self { table }
+    }
+
     pub fn lossless() -> Self {
         Self { table: [1u16; 64] }
     }
@@ -48,6 +61,22 @@ impl QuantTable {
             let csf_factor = 1.0 + (1.0 - CSF_WEIGHTS[i]) * 0.5;
             let adjusted = (base[i] as f32 * csf_factor) as u32;
             let val = (adjusted * scale + 50) / 100;
+            table[i] = val.clamp(1, 255) as u16;
+        }
+        Self { table }
+    }
+
+    pub fn aggressive(quality: u8, is_chroma: bool) -> Self {
+        let base = if is_chroma { JPEG_CHROMA } else { JPEG_LUMA };
+        let q = quality.clamp(1, 100) as u32;
+        let scale = if q < 50 {
+            (5000 / q) * 11 / 10
+        } else {
+            ((200 - q * 2) * 11 / 10).max(15)
+        };
+        let mut table = [0u16; 64];
+        for i in 0..64 {
+            let val = (base[i] as u32 * scale + 50) / 100;
             table[i] = val.clamp(1, 255) as u16;
         }
         Self { table }
@@ -77,7 +106,6 @@ pub struct AdaptiveQuantizer {
     base_qp: u8,
     min_qp: u8,
     max_qp: u8,
-    use_csf: bool,
 }
 
 impl AdaptiveQuantizer {
@@ -87,7 +115,6 @@ impl AdaptiveQuantizer {
             base_qp: base,
             min_qp: base.saturating_sub(10).max(1),
             max_qp: base.saturating_add(10).min(100),
-            use_csf: true,
         }
     }
 
@@ -173,14 +200,7 @@ impl AdaptiveQuantizer {
     }
 
     pub fn get_table(&self, qp: u8, is_chroma: bool) -> QuantTable {
-        if qp < 10 || qp > 98 {
-            return QuantTable::for_quality(qp, is_chroma);
-        }
-        if self.use_csf {
-            QuantTable::with_csf(qp, is_chroma)
-        } else {
-            QuantTable::for_quality(qp, is_chroma)
-        }
+        QuantTable::for_quality(qp, is_chroma)
     }
 
     pub fn quantize(&self, block: &[i16; 64], table: &QuantTable) -> [i16; 64] {

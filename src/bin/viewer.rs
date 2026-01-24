@@ -11,7 +11,7 @@ fn main() -> eframe::Result<()> {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([1280.0, 900.0])
-            .with_title("WK Image Viewer v3.0 Pro"),
+            .with_title("WK Image Viewer v3.1.1 Pro"),
         ..Default::default()
     };
     eframe::run_native(
@@ -198,7 +198,7 @@ impl WkViewerApp {
             use_intra_prediction: true,
             use_adaptive_quant: true,
             exif_camera: String::new(),
-            exif_software: "WK Viewer v3.0".to_string(),
+            exif_software: "WK Viewer v3.1.1".to_string(),
             show_exif_editor: false,
             show_stats: true,
             fps: 0.0,
@@ -373,7 +373,7 @@ impl eframe::App for WkViewerApp {
             ui.horizontal(|ui| {
                 ui.heading("🖼️ WK Viewer Pro");
                 ui.separator();
-                ui.label("v3.0");
+                ui.label("v3.1.1");
                 ui.separator();
                 ui.selectable_value(&mut self.view_mode, ViewMode::Single, "📷 Single");
                 ui.selectable_value(&mut self.view_mode, ViewMode::Batch, "📁 Batch");
@@ -477,7 +477,7 @@ impl eframe::App for WkViewerApp {
                                     ui.add(egui::Slider::new(&mut self.convert_quality, 1..=100));
                                 });
                             }
-                            ui.collapsing("⚙️ v3.0 Features", |ui| {
+                            ui.collapsing("⚙️ v3.1.1 Features", |ui| {
                                 ui.checkbox(&mut self.use_cabac, "CABAC Entropy");
                                 ui.checkbox(&mut self.use_intra_prediction, "Intra Prediction");
                                 ui.checkbox(&mut self.use_adaptive_quant, "Adaptive Quantization");
@@ -501,7 +501,7 @@ impl eframe::App for WkViewerApp {
 
                         ui.add_space(15.0);
                         ui.separator();
-                        ui.heading("ℹ️ WK v3.0");
+                        ui.heading("ℹ️ WK v3.1.1");
                         ui.label("• Multi-block DCT (8×8, 16×16)");
                         ui.label("• CABAC Arithmetic Coding");
                         ui.label("• 11 Intra Prediction Modes");
@@ -611,7 +611,7 @@ impl eframe::App for WkViewerApp {
                         ui.label("Supports: WK, PNG, JPEG, WebP, BMP, GIF, TIFF");
                         ui.label("Mouse wheel to zoom, drag to pan");
                         ui.add_space(20.0);
-                        ui.label("WK v3.0 Features:");
+                        ui.label("WK v3.1.1 Features:");
                         ui.label("• CABAC • Intra-Prediction • Adaptive Quantization");
                     });
                 });

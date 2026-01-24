@@ -24,7 +24,7 @@ pub use format::header::{ColorType, CompressionMode, WkHeader};
 pub use format::{Chunk, ChunkType};
 pub use metadata::{CustomMetadata, ExifData, ExifTag, IccProfile, WkMetadata, XmpData};
 
-pub const VERSION: &str = "3.0.0";
+pub const VERSION: &str = "3.1.1";
 pub const MAGIC: &[u8; 8] = b"WK3.0\x00\x00\x00";
 
 #[cfg(test)]

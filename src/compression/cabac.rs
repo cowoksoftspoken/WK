@@ -1,3 +1,8 @@
+use flate2::read::ZlibDecoder;
+use flate2::write::ZlibEncoder;
+use flate2::Compression;
+use std::io::{Read, Write};
+
 pub struct BitWriter {
     bytes: Vec<u8>,
     current: u8,
@@ -26,6 +31,19 @@ impl BitWriter {
     pub fn write_bits(&mut self, value: u32, count: u8) {
         for i in (0..count).rev() {
             self.write_bit((value >> i) & 1 != 0);
+        }
+    }
+
+    pub fn write_exp_golomb(&mut self, val: u32) {
+        if val == 0 {
+            self.write_bit(true);
+        } else {
+            let val1 = val + 1;
+            let bits = 32 - val1.leading_zeros();
+            for _ in 0..bits - 1 {
+                self.write_bit(false);
+            }
+            self.write_bits(val1, bits as u8);
         }
     }
 
@@ -79,6 +97,21 @@ impl BitReader {
         }
         value
     }
+
+    pub fn read_exp_golomb(&mut self) -> u32 {
+        let mut zeros = 0u32;
+        while !self.read_bit() {
+            zeros += 1;
+            if zeros > 16 {
+                return 0;
+            }
+        }
+        if zeros == 0 {
+            return 0;
+        }
+        let rest = self.read_bits(zeros as u8);
+        ((1 << zeros) | rest) - 1
+    }
 }
 
 #[derive(Clone)]
@@ -95,7 +128,7 @@ impl Default for ProbabilityModel {
 }
 
 pub struct ArithmeticEncoder {
-    writer: BitWriter,
+    pub writer: BitWriter,
 }
 
 impl ArithmeticEncoder {
@@ -104,11 +137,9 @@ impl ArithmeticEncoder {
             writer: BitWriter::new(),
         }
     }
-
     pub fn encode_bypass(&mut self, bit: bool) {
         self.writer.write_bit(bit);
     }
-
     pub fn finish(self) -> Vec<u8> {
         self.writer.finish()
     }
@@ -121,7 +152,7 @@ impl Default for ArithmeticEncoder {
 }
 
 pub struct ArithmeticDecoder {
-    reader: BitReader,
+    pub reader: BitReader,
 }
 
 impl ArithmeticDecoder {
@@ -130,7 +161,6 @@ impl ArithmeticDecoder {
             reader: BitReader::new(data),
         }
     }
-
     pub fn decode_bypass(&mut self) -> bool {
         self.reader.read_bit()
     }
@@ -160,25 +190,33 @@ pub fn encode_block(coeffs: &[i16]) -> Vec<u8> {
         }
     }
 
-    writer.write_bits(last_nz as u32, 6);
+    if coeffs.iter().take(n).all(|&c| c == 0) {
+        writer.write_bits(0, 6);
+        writer.write_bit(true);
+        return writer.finish();
+    }
 
-    for &c in coeffs.iter().take(last_nz + 1) {
-        let sig = c != 0;
-        writer.write_bit(sig);
+    writer.write_bits((last_nz + 1) as u32, 6);
+    writer.write_bit(false);
 
-        if sig {
-            let abs_val = c.unsigned_abs();
-            let sign = c < 0;
-
-            if abs_val <= 15 {
-                writer.write_bit(false);
-                writer.write_bits(abs_val as u32 - 1, 4);
-            } else {
-                writer.write_bit(true);
-                writer.write_bits(abs_val as u32 - 1, 16);
+    let mut i = 0;
+    while i <= last_nz {
+        let c = coeffs[i];
+        if c == 0 {
+            let mut run = 0;
+            while i + run <= last_nz && coeffs[i + run] == 0 {
+                run += 1;
             }
-
-            writer.write_bit(sign);
+            run = run.min(32);
+            writer.write_bit(false);
+            writer.write_exp_golomb(run as u32 - 1);
+            i += run;
+        } else {
+            writer.write_bit(true);
+            let abs_val = c.unsigned_abs() as u32;
+            writer.write_exp_golomb(abs_val - 1);
+            writer.write_bit(c < 0);
+            i += 1;
         }
     }
 
@@ -190,30 +228,46 @@ pub fn decode_block(data: &[u8], size: usize) -> Vec<i16> {
     let mut reader = BitReader::new(data.to_vec());
     let n = size.min(64);
 
-    let last_nz = reader.read_bits(6) as usize;
-    if last_nz >= n {
+    let count = reader.read_bits(6) as usize;
+    let is_zero = reader.read_bit();
+
+    if count == 0 && is_zero {
         return coeffs;
     }
+    let last_nz = count.saturating_sub(1);
 
-    for i in 0..=last_nz {
-        let sig = reader.read_bit();
-        if sig {
-            let is_large = reader.read_bit();
-            let abs_val = if !is_large {
-                reader.read_bits(4) + 1
-            } else {
-                reader.read_bits(16) + 1
-            };
+    let mut i = 0;
+    while i <= last_nz && i < n {
+        let is_nonzero = reader.read_bit();
+        if !is_nonzero {
+            let run = reader.read_exp_golomb() as usize + 1;
+            i += run.min(last_nz + 1 - i);
+        } else {
+            let abs_val = reader.read_exp_golomb() + 1;
             let sign = reader.read_bit();
             coeffs[i] = if sign {
                 -(abs_val as i16)
             } else {
                 abs_val as i16
             };
+            i += 1;
         }
     }
 
     coeffs
+}
+
+pub fn compress_coefficients(data: &[u8]) -> Vec<u8> {
+    let mut encoder = ZlibEncoder::new(Vec::new(), Compression::new(9));
+    let _ = encoder.write_all(data);
+    encoder.finish().unwrap_or_default()
+}
+
+pub fn decompress_coefficients(data: &[u8]) -> Vec<u8> {
+    let mut decoder = ZlibDecoder::new(data);
+    let mut result = Vec::new();
+    let _ = decoder.read_to_end(&mut result);
+    result
 }
 
 pub fn encode_coefficients(
@@ -246,19 +300,43 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_exp_golomb() {
+        for val in [0, 1, 2, 3, 7, 15, 31, 100, 255] {
+            let mut w = BitWriter::new();
+            w.write_exp_golomb(val);
+            let data = w.finish();
+            let mut r = BitReader::new(data);
+            assert_eq!(r.read_exp_golomb(), val, "Failed for {}", val);
+        }
+    }
+
+    #[test]
     fn test_block_roundtrip() {
-        let coeffs: Vec<i16> = vec![100, -50, 25, -12, 6, 0, 0, 0];
+        let coeffs: Vec<i16> = vec![
+            100, -50, 25, -12, 6, -3, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0,
+        ];
         let encoded = encode_block(&coeffs);
-        let decoded = decode_block(&encoded, 8);
-        assert_eq!(&coeffs[..], &decoded[..8]);
+        let decoded = decode_block(&encoded, 64);
+        for i in 0..7 {
+            assert_eq!(coeffs[i], decoded[i], "Mismatch at {}", i);
+        }
     }
 
     #[test]
     fn test_multi_block() {
         let blocks: Vec<Vec<i16>> = vec![
-            vec![100, -50, 25, 0, 0, 0, 0, 0],
-            vec![80, -40, 20, -10, 0, 0, 0, 0],
-            vec![60, -30, 15, -8, 4, 0, 0, 0],
+            vec![
+                100, -50, 25, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            ],
+            vec![
+                80, 0, -40, 20, -10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            ],
         ];
 
         let mut encoder = ArithmeticEncoder::new();
@@ -271,8 +349,10 @@ mod tests {
         let mut decoder = ArithmeticDecoder::new(encoded);
         let mut dec_ctx = CABACContext::new(8);
         for orig in &blocks {
-            let decoded = decode_coefficients(&mut decoder, &mut dec_ctx, 8);
-            assert_eq!(&orig[..], &decoded[..8]);
+            let decoded = decode_coefficients(&mut decoder, &mut dec_ctx, 64);
+            for i in 0..8 {
+                assert_eq!(orig[i], decoded[i], "Block mismatch at {}", i);
+            }
         }
     }
 }

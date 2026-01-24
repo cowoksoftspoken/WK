@@ -1,19 +1,16 @@
-//! Safe Intra-Prediction Module with proper edge handling
-//! Supports 11 modes: DC, H, V, Diagonal modes, Planar, TrueMotion
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IntraMode {
-    DC,                // 0
-    Horizontal,        // 1
-    Vertical,          // 2
-    DiagonalDownLeft,  // 3
-    DiagonalDownRight, // 4
-    VerticalRight,     // 5
-    HorizontalDown,    // 6
-    VerticalLeft,      // 7
-    HorizontalUp,      // 8
-    Planar,            // 9
-    TrueMotion,        // 10
+    DC,
+    Horizontal,
+    Vertical,
+    DiagonalDownLeft,
+    DiagonalDownRight,
+    VerticalRight,
+    HorizontalDown,
+    VerticalLeft,
+    HorizontalUp,
+    Planar,
+    TrueMotion,
 }
 
 impl IntraMode {
@@ -31,7 +28,6 @@ impl IntraMode {
         Self::TrueMotion,
     ];
 
-    /// Safe modes for edge blocks (first row/column)
     pub const SAFE_EDGE: [IntraMode; 3] = [Self::DC, Self::Horizontal, Self::Vertical];
 
     pub fn to_u8(self) -> u8 {
@@ -74,7 +70,6 @@ impl Default for IntraMode {
     }
 }
 
-/// Safe intra-predictor with edge block handling
 pub struct IntraPredictor {
     size: usize,
 }
@@ -84,9 +79,8 @@ impl IntraPredictor {
         Self { size: size.max(1) }
     }
 
-    /// Generate safe neighbor values (128 for missing neighbors)
     fn safe_top(&self, top: &[u8]) -> Vec<u8> {
-        let mut safe = vec![128u8; self.size * 2]; // Extended for diagonal modes
+        let mut safe = vec![128u8; self.size * 2];
         for (i, &v) in top.iter().take(self.size * 2).enumerate() {
             safe[i] = v;
         }
@@ -101,12 +95,9 @@ impl IntraPredictor {
         safe
     }
 
-    /// Check if this is an edge block (needs safe mode selection)
     pub fn is_edge_block(bx: usize, by: usize) -> bool {
         bx == 0 || by == 0
     }
-
-    /// Predict block content based on mode and neighbors
     pub fn predict(&self, mode: IntraMode, top: &[u8], left: &[u8], top_left: u8) -> Vec<u8> {
         let n = self.size;
         let mut pred = vec![128u8; n * n];
@@ -240,7 +231,6 @@ impl IntraPredictor {
         pred
     }
 
-    /// Select best mode with edge-aware mode candidates
     pub fn select_best_mode(
         &self,
         block: &[u8],
@@ -251,7 +241,6 @@ impl IntraPredictor {
         self.select_best_mode_edge(block, top, left, top_left, false, false)
     }
 
-    /// Select best mode with edge block awareness
     pub fn select_best_mode_edge(
         &self,
         block: &[u8],
@@ -261,7 +250,6 @@ impl IntraPredictor {
         is_first_row: bool,
         is_first_col: bool,
     ) -> (IntraMode, u64) {
-        // Use safe modes for edge blocks
         let candidates = if is_first_row || is_first_col {
             &IntraMode::SAFE_EDGE[..]
         } else {

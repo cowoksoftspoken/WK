@@ -29,7 +29,7 @@ class WKDecoder {
   decode() {
     for (let i = 0; i < 8; i++) {
       if (this.data[i] !== WK_MAGIC[i]) {
-        throw new Error("Invalid WK v3.0 file (magic mismatch)");
+        throw new Error("Invalid WK v3.1.1 file (magic mismatch)");
       }
     }
     this.pos = 8;
@@ -146,12 +146,50 @@ class App {
 
   async loadWkFile(file) {
     const buffer = await file.arrayBuffer();
+
+    // Try WASM decoder first
+    try {
+      const { loadWasm, decodeWkImage, createImageData } =
+        await import("./wasm_loader.js");
+      await loadWasm();
+
+      const decoded = await decodeWkImage(buffer);
+
+      this.updateInfo({
+        size: `${decoded.width} × ${decoded.height}`,
+        format: "WK v3.1.1",
+        quality: decoded.quality ? `Q${decoded.quality}` : "Lossless",
+        mode: decoded.compression,
+      });
+
+      this.canvas.width = decoded.width;
+      this.canvas.height = decoded.height;
+
+      const imgData = this.ctx.createImageData(decoded.width, decoded.height);
+      imgData.data.set(decoded.pixels);
+      this.ctx.putImageData(imgData, 0, 0);
+
+      document.getElementById("dropzone").style.display = "none";
+      document.getElementById("canvasWrapper").style.display = "flex";
+
+      this.drawHistogram(imgData.data);
+      this.setStatus(
+        `WK Decoded: ${decoded.width}×${decoded.height} ${decoded.compression}`,
+      );
+      return;
+    } catch (wasmError) {
+      console.warn(
+        "WASM decode failed, falling back to header-only:",
+        wasmError,
+      );
+    }
+
     const decoder = new WKDecoder(buffer);
-    const { header, imageData, isLossy, chunks } = decoder.decode();
+    const { header, isLossy, chunks } = decoder.decode();
 
     this.updateInfo({
       size: `${header.width} × ${header.height}`,
-      format: "WK v3.0",
+      format: "WK v3.1.1",
       quality:
         header.compression === "Lossless" ? "Lossless" : `Q${header.quality}`,
       mode: header.compression,
@@ -288,6 +326,10 @@ class App {
 
   downloadPng() {
     if (!this.currentFile?.name.endsWith(".wk")) {
+      if (!this.canvas) {
+        this.showToast("No image loaded", "error");
+        return;
+      }
       const link = document.createElement("a");
       link.download = (this.currentFile?.name || "image").replace(
         /\.\w+$/,
