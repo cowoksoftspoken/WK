@@ -4,8 +4,8 @@
   "collaborators": [
     "Inggrit Setya Budi"
   ],
-  "description": "WK Image Format - Production-grade image format with CABAC, Multi-block DCT, HDR, and Animation support",
-  "version": "3.0.0",
+  "description": "WK Image Format - Production-grade image format with VP8-style coding, deblocking filter, HDR, and Animation support",
+  "version": "3.2.1",
   "license": "MIT",
   "repository": {
     "type": "git",

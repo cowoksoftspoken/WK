@@ -1,5 +1,91 @@
 /* @ts-self-types="./wk_format.d.ts" */
 
+export class WkFileInfo {
+    static __wrap(ptr) {
+        ptr = ptr >>> 0;
+        const obj = Object.create(WkFileInfo.prototype);
+        obj.__wbg_ptr = ptr;
+        WkFileInfoFinalization.register(obj, obj.__wbg_ptr, obj);
+        return obj;
+    }
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        WkFileInfoFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_wkfileinfo_free(ptr, 0);
+    }
+    /**
+     * @returns {string}
+     */
+    get color_type() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.wkfileinfo_color_type(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * @returns {string}
+     */
+    get compression() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.wkfileinfo_compression(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * @returns {number}
+     */
+    get file_size() {
+        const ret = wasm.wkfileinfo_file_size(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * @returns {boolean}
+     */
+    get has_alpha() {
+        const ret = wasm.wkfileinfo_has_alpha(this.__wbg_ptr);
+        return ret !== 0;
+    }
+    /**
+     * @returns {number}
+     */
+    get height() {
+        const ret = wasm.wkfileinfo_height(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * @returns {number}
+     */
+    get quality() {
+        const ret = wasm.wkfileinfo_quality(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {number}
+     */
+    get width() {
+        const ret = wasm.wkfileinfo_width(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+}
+if (Symbol.dispose) WkFileInfo.prototype[Symbol.dispose] = WkFileInfo.prototype.free;
+
 export class WkWasmDecoder {
     __destroy_into_raw() {
         const ptr = this.__wbg_ptr;
@@ -130,6 +216,39 @@ export function decode_wk(data) {
     return WkWasmImage.__wrap(ret[0]);
 }
 
+/**
+ * @param {Uint8Array} rgba_data
+ * @param {number} width
+ * @param {number} height
+ * @param {number} quality
+ * @returns {Uint8Array}
+ */
+export function encode_wk(rgba_data, width, height, quality) {
+    const ptr0 = passArray8ToWasm0(rgba_data, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.encode_wk(ptr0, len0, width, height, quality);
+    if (ret[3]) {
+        throw takeFromExternrefTable0(ret[2]);
+    }
+    var v2 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+    return v2;
+}
+
+/**
+ * @param {Uint8Array} data
+ * @returns {WkFileInfo}
+ */
+export function get_file_info(data) {
+    const ptr0 = passArray8ToWasm0(data, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.get_file_info(ptr0, len0);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return WkFileInfo.__wrap(ret[0]);
+}
+
 export function init_panic_hook() {
     wasm.init_panic_hook();
 }
@@ -183,6 +302,9 @@ function __wbg_get_imports() {
     };
 }
 
+const WkFileInfoFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_wkfileinfo_free(ptr >>> 0, 1));
 const WkWasmDecoderFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_wkwasmdecoder_free(ptr >>> 0, 1));

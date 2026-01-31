@@ -1,9 +1,9 @@
 [package]
 name = "wk-image-format"
-version = "3.1.1"
+version = "3.2.1"
 edition = "2021"
 authors = ["Inggrit Setya Budi"]
-description = "WK Image Format - Production-grade image format with CABAC, Multi-block DCT, HDR, and Animation support"
+description = "WK Image Format - Production-grade image format with VP8-style coding, deblocking filter, HDR, and Animation support"
 license = "MIT"
 repository = "https://github.com/cowoksoftspoken/WK"
 

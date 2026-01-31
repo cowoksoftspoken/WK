@@ -1,6 +1,19 @@
 /* tslint:disable */
 /* eslint-disable */
 
+export class WkFileInfo {
+    private constructor();
+    free(): void;
+    [Symbol.dispose](): void;
+    readonly color_type: string;
+    readonly compression: string;
+    readonly file_size: number;
+    readonly has_alpha: boolean;
+    readonly height: number;
+    readonly quality: number;
+    readonly width: number;
+}
+
 export class WkWasmDecoder {
     free(): void;
     [Symbol.dispose](): void;
@@ -22,15 +35,29 @@ export class WkWasmImage {
 
 export function decode_wk(data: Uint8Array): WkWasmImage;
 
+export function encode_wk(rgba_data: Uint8Array, width: number, height: number, quality: number): Uint8Array;
+
+export function get_file_info(data: Uint8Array): WkFileInfo;
+
 export function init_panic_hook(): void;
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
+    readonly __wbg_wkfileinfo_free: (a: number, b: number) => void;
     readonly __wbg_wkwasmdecoder_free: (a: number, b: number) => void;
     readonly __wbg_wkwasmimage_free: (a: number, b: number) => void;
     readonly decode_wk: (a: number, b: number) => [number, number, number];
+    readonly encode_wk: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
+    readonly get_file_info: (a: number, b: number) => [number, number, number];
+    readonly wkfileinfo_color_type: (a: number) => [number, number];
+    readonly wkfileinfo_compression: (a: number) => [number, number];
+    readonly wkfileinfo_file_size: (a: number) => number;
+    readonly wkfileinfo_has_alpha: (a: number) => number;
+    readonly wkfileinfo_height: (a: number) => number;
+    readonly wkfileinfo_quality: (a: number) => number;
+    readonly wkfileinfo_width: (a: number) => number;
     readonly wkwasmdecoder_decode: (a: number) => [number, number, number];
     readonly wkwasmdecoder_new: (a: number, b: number) => number;
     readonly wkwasmimage_color_type: (a: number) => [number, number];

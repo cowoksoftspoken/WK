@@ -1,9 +1,10 @@
 use super::adaptive_quant::{AdaptiveQuantizer, QuantTable};
-use super::cabac::{
+use super::arithmetic_coder::{
     compress_coefficients, decode_coefficients, decompress_coefficients, encode_coefficients,
     ArithmeticDecoder, ArithmeticEncoder, CABACContext,
 };
 use super::dct::{dct_8x8_fast, idct_8x8_fast, zigzag_scan, zigzag_unscan};
+use super::deblocking::{DeblockConfig, DeblockingFilter};
 use super::entropy::{EntropyDecoder, EntropyEncoder};
 use super::intra_prediction::{IntraMode, IntraPredictor};
 use super::predictor::{apply_optimal_predictor, reverse_predictor};
@@ -183,6 +184,7 @@ impl CompressionEngine {
                 }
             }
 
+            let mut reconstructed = padded.clone();
             let mut intra_modes = Vec::new();
             let mut block_qps = Vec::new();
             let mut coeffs_data = Vec::new();
@@ -196,9 +198,10 @@ impl CompressionEngine {
                         }
                     }
 
-                    let (top, left, top_left) = self.get_neighbors(&padded, padded_w, bx, by);
+                    let (top, left, top_left) =
+                        self.get_neighbors(&reconstructed, padded_w, bx, by);
 
-                    let (mode, residual) = if self.config.use_intra_prediction && !is_chroma {
+                    let (mode, residual, pred) = if self.config.use_intra_prediction && !is_chroma {
                         let is_first_row = by == 0;
                         let is_first_col = bx == 0;
                         let (best_mode, _) = predictor.select_best_mode_edge(
@@ -215,10 +218,10 @@ impl CompressionEngine {
                             .zip(pred.iter())
                             .map(|(&b, &p)| b as i16 - p as i16)
                             .collect();
-                        (best_mode, res)
+                        (best_mode, res, pred)
                     } else {
                         let res: Vec<i16> = block.iter().map(|&b| b as i16 - 128).collect();
-                        (IntraMode::DC, res)
+                        (IntraMode::DC, res, vec![128u8; 64])
                     };
                     intra_modes.push(mode.to_u8());
 
@@ -244,8 +247,22 @@ impl CompressionEngine {
                     let table = adaptive_quant.get_table(qp, is_chroma);
                     let quantized = adaptive_quant.quantize(&dct, &table);
                     let scanned = zigzag_scan(&quantized);
-
                     coeffs_data.push(scanned);
+
+                    let dequantized = adaptive_quant.dequantize(&quantized, &table);
+                    let idct_block = if self.simd_level != SimdLevel::None {
+                        idct_8x8_simd(&dequantized)
+                    } else {
+                        idct_8x8_fast(&dequantized)
+                    };
+
+                    for y in 0..8 {
+                        for x in 0..8 {
+                            let pred_val = pred[y * 8 + x] as i16;
+                            let val = (pred_val + idct_block[y * 8 + x]).clamp(0, 255) as u8;
+                            reconstructed[(by * 8 + y) * padded_w + bx * 8 + x] = val;
+                        }
+                    }
                 }
             }
 
@@ -424,6 +441,9 @@ impl CompressionEngine {
                     }
                 }
             }
+            let deblock_config = DeblockConfig::from_quality(self.config.quality);
+            let deblock_filter = DeblockingFilter::new(deblock_config);
+            deblock_filter.apply(&mut padded, padded_w, padded_h, 8);
 
             for y in 0..height {
                 for x in 0..width {

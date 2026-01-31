@@ -1,9 +1,19 @@
 /* tslint:disable */
 /* eslint-disable */
 export const memory: WebAssembly.Memory;
+export const __wbg_wkfileinfo_free: (a: number, b: number) => void;
 export const __wbg_wkwasmdecoder_free: (a: number, b: number) => void;
 export const __wbg_wkwasmimage_free: (a: number, b: number) => void;
 export const decode_wk: (a: number, b: number) => [number, number, number];
+export const encode_wk: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
+export const get_file_info: (a: number, b: number) => [number, number, number];
+export const wkfileinfo_color_type: (a: number) => [number, number];
+export const wkfileinfo_compression: (a: number) => [number, number];
+export const wkfileinfo_file_size: (a: number) => number;
+export const wkfileinfo_has_alpha: (a: number) => number;
+export const wkfileinfo_height: (a: number) => number;
+export const wkfileinfo_quality: (a: number) => number;
+export const wkfileinfo_width: (a: number) => number;
 export const wkwasmdecoder_decode: (a: number) => [number, number, number];
 export const wkwasmdecoder_new: (a: number, b: number) => number;
 export const wkwasmimage_color_type: (a: number) => [number, number];

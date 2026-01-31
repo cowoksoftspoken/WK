@@ -10,6 +10,12 @@ pub const JPEG_CHROMA: [u16; 64] = [
     99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99,
 ];
 
+pub const GENTLE_CHROMA: [u16; 64] = [
+    17, 18, 20, 24, 30, 38, 48, 60, 18, 20, 22, 28, 36, 45, 56, 68, 20, 22, 26, 32, 42, 52, 64, 76,
+    24, 28, 32, 40, 50, 62, 74, 86, 30, 36, 42, 50, 60, 72, 84, 96, 38, 45, 52, 62, 72, 84, 96, 99,
+    48, 56, 64, 74, 84, 96, 99, 99, 60, 68, 76, 86, 96, 99, 99, 99,
+];
+
 pub const CSF_WEIGHTS: [f32; 64] = [
     1.0, 0.98, 0.93, 0.85, 0.75, 0.63, 0.52, 0.42, 0.98, 0.95, 0.88, 0.78, 0.67, 0.55, 0.45, 0.36,
     0.93, 0.88, 0.80, 0.70, 0.59, 0.48, 0.39, 0.31, 0.85, 0.78, 0.70, 0.60, 0.50, 0.41, 0.33, 0.26,
@@ -24,7 +30,15 @@ pub struct QuantTable {
 
 impl QuantTable {
     pub fn for_quality(quality: u8, is_chroma: bool) -> Self {
-        let base = if is_chroma { JPEG_CHROMA } else { JPEG_LUMA };
+        let base = if is_chroma {
+            if quality >= 80 {
+                GENTLE_CHROMA
+            } else {
+                JPEG_CHROMA
+            }
+        } else {
+            JPEG_LUMA
+        };
         let q = quality.clamp(1, 100) as u32;
         let scale = if q < 50 { 5000 / q } else { 200 - q * 2 };
         let mut table = [0u16; 64];
