@@ -221,7 +221,11 @@ impl AdaptiveQuantizer {
         let mut out = [0i16; 64];
         for i in 0..64 {
             let t = table.table[i].max(1) as i32;
-            out[i] = ((block[i] as i32) / t) as i16;
+            let val = block[i] as i32;
+
+            let sign = if val >= 0 { 1 } else { -1 };
+            let abs_val = val.abs();
+            out[i] = (sign * ((abs_val + t / 2) / t)) as i16;
         }
         out
     }

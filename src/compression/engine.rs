@@ -3,6 +3,7 @@ use super::arithmetic_coder::{
     compress_coefficients, decode_coefficients, decompress_coefficients, encode_coefficients,
     ArithmeticDecoder, ArithmeticEncoder, CABACContext,
 };
+use super::color::{convert_rgb_to_ycbcr_image, convert_ycbcr_to_rgb_image, ColorSpace};
 use super::dct::{dct_8x8_fast, idct_8x8_fast, zigzag_scan, zigzag_unscan};
 use super::deblocking::{DeblockConfig, DeblockingFilter};
 use super::entropy::{EntropyDecoder, EntropyEncoder};
@@ -162,11 +163,25 @@ impl CompressionEngine {
 
         let mut all_data: Vec<u8> = Vec::new();
 
-        for ch in 0..channels {
-            let is_chroma = ch > 0 && channels >= 3;
-            let channel_data: Vec<u8> = (0..height)
-                .flat_map(|y| (0..width).map(move |x| data[(y * width + x) * channels + ch]))
-                .collect();
+        let ycbcr_planes: Vec<Vec<u8>> = if channels >= 3 {
+            let (y, cb, cr) =
+                convert_rgb_to_ycbcr_image(data, width, height, channels, ColorSpace::YCbCrFull);
+            vec![y, cb, cr]
+        } else {
+            (0..channels)
+                .map(|ch| {
+                    (0..height)
+                        .flat_map(|y| {
+                            (0..width).map(move |x| data[(y * width + x) * channels + ch])
+                        })
+                        .collect()
+                })
+                .collect()
+        };
+
+        for ch in 0..ycbcr_planes.len() {
+            let is_chroma = ch > 0 && ycbcr_planes.len() >= 3;
+            let channel_data = &ycbcr_planes[ch];
 
             let mut padded = vec![128u8; padded_w * padded_h];
             for y in 0..height {
@@ -201,7 +216,7 @@ impl CompressionEngine {
                     let (top, left, top_left) =
                         self.get_neighbors(&reconstructed, padded_w, bx, by);
 
-                    let (mode, residual, pred) = if self.config.use_intra_prediction && !is_chroma {
+                    let (mode, residual, pred) = if self.config.use_intra_prediction {
                         let is_first_row = by == 0;
                         let is_first_col = bx == 0;
                         let (best_mode, _) = predictor.select_best_mode_edge(
@@ -337,7 +352,7 @@ impl CompressionEngine {
         let blocks_per_channel = block_width * block_height;
 
         let predictor = IntraPredictor::new(8);
-        let mut output = vec![0u8; width * height * channels];
+        let mut ycbcr_planes: Vec<Vec<u8>> = vec![vec![0u8; width * height]; channels];
 
         for ch in 0..channels {
             let is_chroma = ch > 0 && channels >= 3;
@@ -423,7 +438,7 @@ impl CompressionEngine {
                         .unwrap_or(IntraMode::DC);
                     let (top, left, top_left) = self.get_neighbors(&padded, padded_w, bx, by);
 
-                    let pred_block = if use_intra && !is_chroma {
+                    let pred_block = if use_intra {
                         predictor.predict(mode, &top, &left, top_left)
                     } else {
                         vec![128u8; 64]
@@ -443,14 +458,38 @@ impl CompressionEngine {
             }
             let deblock_config = DeblockConfig::from_quality(self.config.quality);
             let deblock_filter = DeblockingFilter::new(deblock_config);
-            deblock_filter.apply(&mut padded, padded_w, padded_h, 8);
+            if is_chroma {
+                deblock_filter.apply_chroma(&mut padded, padded_w, padded_h, 8);
+            } else {
+                deblock_filter.apply(&mut padded, padded_w, padded_h, 8);
+            }
 
             for y in 0..height {
                 for x in 0..width {
-                    output[(y * width + x) * channels + ch] = padded[y * padded_w + x];
+                    ycbcr_planes[ch][y * width + x] = padded[y * padded_w + x];
                 }
             }
         }
+
+        let output = if channels >= 3 {
+            convert_ycbcr_to_rgb_image(
+                &ycbcr_planes[0],
+                &ycbcr_planes[1],
+                &ycbcr_planes[2],
+                width,
+                height,
+                channels,
+                ColorSpace::YCbCrFull,
+            )
+        } else {
+            let mut out = vec![0u8; width * height * channels];
+            for ch in 0..channels {
+                for i in 0..(width * height) {
+                    out[i * channels + ch] = ycbcr_planes[ch][i];
+                }
+            }
+            out
+        };
 
         Ok(output)
     }

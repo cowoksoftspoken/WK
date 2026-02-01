@@ -1,7 +1,7 @@
-pub mod _vp8_coder;
 pub mod adaptive_quant;
 pub mod arithmetic_coder;
 pub mod color;
+pub mod context_model;
 pub mod dct;
 pub mod deblocking;
 pub mod engine;
@@ -9,8 +9,12 @@ pub mod entropy;
 pub mod intra_prediction;
 pub mod multi_dct;
 pub mod predictor;
+pub mod probability_tables;
 pub mod quantizer;
 pub mod simd;
+pub mod token_tree;
+pub mod vp8_coder;
+pub mod vp8_scan;
 
 pub use adaptive_quant::{AdaptiveQuantizer, BlockStats, QuantTable};
 pub use arithmetic_coder::{ArithmeticDecoder, ArithmeticEncoder, CABACContext, ProbabilityModel};
