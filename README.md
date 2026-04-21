@@ -14,7 +14,7 @@
 </p>
 
 ---
->This project is no longer maintained and has been moved to (https://github.com/cowoksoftspoken/libwk)[libwk].
+>This project is no longer maintained and has been moved to [libwk](https://github.com/cowoksoftspoken/libwk).
 
 ## What is WK?
 
